@@ -1,6 +1,6 @@
 // --- УНИКАЛЬНЫЕ КЛЮЧИ ДЛЯ GITHUB PAGES ---
 const DB_KEY = 'fleet_app_db_v1';
-const USER_KEY = 'fleet_app_user_v1';
+const USER_KEY = 'fleet_app_user_v1'; // Теперь этот ключ будет жить в sessionStorage
 
 // --- БАЗА ДАННЫХ ПО УМОЛЧАНИЮ ---
 const defaultDB = {
@@ -28,7 +28,8 @@ try {
     db = defaultDB;
 }
 
-let currentUser = JSON.parse(localStorage.getItem(USER_KEY)) || null;
+// ИСПРАВЛЕНИЕ: Читаем пользователя из sessionStorage (индивидуально для каждой вкладки)
+let currentUser = JSON.parse(sessionStorage.getItem(USER_KEY)) || null;
 
 function saveDB() {
     localStorage.setItem(DB_KEY, JSON.stringify(db));
@@ -39,7 +40,7 @@ let courierMap;
 let selectedCoords = null; 
 let searchTimeout = null;
 
-// --- 1. АВТО-ВХОД ПРИ ОБНОВЛЕНИИ СТРАНИЦЫ (F5) ---
+// --- 1. АВТО-ВХОД ПРИ ОБНОВЛЕНИИ СТРАНИЦЫ ---
 document.addEventListener("DOMContentLoaded", () => {
     if (currentUser) {
         document.getElementById('auth-screen').classList.remove('active');
@@ -58,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// --- СИНХРОНИЗАЦИЯ ВКЛАДОК ДЛЯ УВЕДОМЛЕНИЙ ---
+// --- СИНХРОНИЗАЦИЯ БАЗЫ ДАННЫХ МЕЖДУ ВКЛАДКАМИ ---
 window.addEventListener('storage', (e) => {
     if (e.key === DB_KEY) {
         const oldDB = db;
@@ -109,7 +110,9 @@ function handleLogin() {
 
     if (user && user.pass === psw) {
         currentUser = { login: log, role: user.role, name: user.name };
-        localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+        
+        // ИСПРАВЛЕНИЕ: Сохраняем пользователя только в этой вкладке
+        sessionStorage.setItem(USER_KEY, JSON.stringify(currentUser));
 
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         
@@ -131,7 +134,7 @@ function handleLogin() {
 
 function logout() {
     currentUser = null;
-    localStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(USER_KEY); // Очищаем сессию этой вкладки
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById('auth-screen').classList.add('active');
     document.getElementById('login-input').value = '';
@@ -141,7 +144,7 @@ function logout() {
 
 function resetApp() {
     localStorage.removeItem(DB_KEY);
-    localStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(USER_KEY);
     location.reload();
 }
 
@@ -371,27 +374,22 @@ function closeCourierRoute() {
 }
 
 function completeOrder(orderId) {
-    // Находим заказ и курьера
     const orderIndex = db.orders.findIndex(o => o.id === orderId);
     const courier = db.couriers.find(c => c.name === currentUser.name);
 
     if(orderIndex > -1 && courier) {
         const order = db.orders[orderIndex];
 
-        // 1. ПЕРЕМЕЩАЕМ КУРЬЕРА НА МЕСТО ЗАКАЗА
         courier.lat = order.lat;
         courier.lng = order.lng;
 
-        // 2. УДАЛЯЕМ ЗАКАЗ
         db.orders.splice(orderIndex, 1); 
 
-        // 3. ПРОВЕРЯЕМ, ОСТАЛИСЬ ЛИ ЕЩЕ ЗАКАЗЫ (если нет - меняем статус)
         const myRemainingOrders = db.orders.filter(o => o.status === `Назначен: ${currentUser.name}`);
         if(myRemainingOrders.length === 0) {
             courier.status = 'Свободен';
         }
         
-        // 4. СОХРАНЯЕМ И ОБНОВЛЯЕМ
         saveDB(); 
         closeCourierRoute();
         updateCourierView();
