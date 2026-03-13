@@ -9,12 +9,15 @@
 </head>
 <body>
 
+    <div id="toast-container" class="toast-container"></div>
+
     <section id="auth-screen" class="screen active">
         <div class="auth-card">
             <h2>FleetControl</h2>
             <div class="test-creds">
                 <p>Логист: <b>admin</b> / <b>123</b></p>
-                <p>Курьер: <b>courier</b> / <b>123</b></p>
+                <p>Курьер: <b>courier</b> / <b>123</b> (Мария К.)</p>
+                <p>Курьер 2: <b>ivan</b> / <b>123</b> (Иван П.)</p>
             </div>
             <div class="inputs">
                 <input type="text" id="login-input" placeholder="Логин">
@@ -39,9 +42,7 @@
         <section class="main-content">
             <div id="tab-dashboard" class="tab-pane active">
                 <div class="workspace">
-                    <div class="map-view">
-                        <div id="map"></div>
-                    </div>
+                    <div class="map-view"><div id="map"></div></div>
                     <aside class="side-details" id="map-details">
                         <h3>Инфо-панель</h3>
                         <p>Кликните на курьера или заказ на карте, чтобы увидеть детали.</p>
@@ -60,8 +61,7 @@
                         <input type="number" id="new-order-weight" placeholder="Вес (кг)">
                         <button class="btn-main" onclick="addOrder()">Создать заказ</button>
                     </div>
-                    <div class="list-section" id="orders-list-container">
-                        </div>
+                    <div class="list-section" id="orders-list-container"></div>
                 </div>
             </div>
 
@@ -78,8 +78,7 @@
                         </select>
                         <button class="btn-main" onclick="addCourier()">Добавить в базу</button>
                     </div>
-                    <div class="list-section" id="couriers-list-container">
-                        </div>
+                    <div class="list-section" id="couriers-list-container"></div>
                 </div>
             </div>
         </section>
@@ -89,7 +88,7 @@
         <div class="mobile-container">
             <header class="m-head">
                 <div class="m-status">Статус: <span id="m-status-text">Онлайн</span></div>
-                <button class="m-btn-alert" onclick="toggleCourierStatus()">Поломка</button>
+                <button class="m-btn-alert" id="btn-breakdown" onclick="toggleCourierStatus()">Поломка</button>
             </header>
             
             <div class="m-content" id="courier-main-view">
@@ -100,8 +99,7 @@
             <div id="courier-route-view" style="display: none; flex-direction: column; flex-grow: 1;">
                 <button class="btn-main" style="border-radius: 0; background: #1e293b; padding: 15px; text-align: left;" onclick="closeCourierRoute()">← Назад к списку</button>
                 <div id="courier-map" style="flex-grow: 1; width: 100%; min-height: 250px; z-index: 1;"></div>
-                <div id="courier-route-details" style="padding: 20px; border-top: 1px solid #e2e8f0; background: white;">
-                    </div>
+                <div id="courier-route-details" style="padding: 20px; border-top: 1px solid #e2e8f0; background: white;"></div>
             </div>
 
             <div class="m-footer" id="courier-footer">

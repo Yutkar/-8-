@@ -1,69 +1,119 @@
-// --- БАЗА ДАННЫХ В ПАМЯТИ ---
-let nextOrderId = 103; // Счетчик номеров заказов
-
-const db = {
+// --- БАЗА ДАННЫХ (LOCAL STORAGE) ---
+const defaultDB = {
     users: {
         'admin': { pass: '123', role: 'logistic' },
-        'courier': { pass: '123', role: 'courier', name: 'Мария К.', id: 2 }
+        'courier': { pass: '123', role: 'courier', name: 'Мария К.' },
+        'ivan': { pass: '123', role: 'courier', name: 'Иван П.' }
     },
     couriers: [
         { id: 1, name: 'Иван П.', transport: 'Авто', status: 'Свободен', lat: 54.875, lng: 69.160 },
-        { id: 2, name: 'Мария К.', transport: 'Мото', status: 'В пути', lat: 54.860, lng: 69.140 }
+        { id: 2, name: 'Мария К.', transport: 'Мото', status: 'Свободен', lat: 54.860, lng: 69.140 }
     ],
     orders: [
-        { id: 101, address: 'ул. Абая, 25', weight: 15, status: 'Ожидает назначения', lat: 54.870, lng: 69.155 },
-        { id: 102, address: 'ул. Назарбаева, 12', weight: 5, status: 'Назначен: Мария К.', lat: 54.865, lng: 69.135 }
-    ]
+        { id: 101, address: 'ул. Абая, 25', weight: 15, status: 'Ожидает назначения', lat: 54.870, lng: 69.155 }
+    ],
+    nextOrderId: 102
 };
 
-// Переменные для карт и поиска
+// Загружаем базу из памяти браузера или берем стандартную
+let db = JSON.parse(localStorage.getItem('fleetDB')) || defaultDB;
+let currentUser = JSON.parse(localStorage.getItem('fleetUser')) || null;
+
+// Функция для сохранения изменений
+function saveDB() {
+    localStorage.setItem('fleetDB', JSON.stringify(db));
+}
+
+// Переменные для карт
 let map, mapMarkers = []; 
 let courierMap; 
 let selectedCoords = null; 
 let searchTimeout = null;
 
-// --- 1. АВТОРИЗАЦИЯ И НАВИГАЦИЯ ---
-function handleLogin() {
-    try {
-        const log = document.getElementById('login-input').value.trim().toLowerCase();
-        const psw = document.getElementById('password-input').value.trim();
-        const err = document.getElementById('auth-error');
-
-        err.style.display = 'none';
-        const user = db.users[log];
-
-        if (user && user.pass === psw) {
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            
-            if (user.role === 'logistic') {
-                document.getElementById('logistic-panel').classList.add('active');
-                if (typeof L !== 'undefined') { 
-                    initMap(); 
-                    updateLogisticViews(); 
-                } else { 
-                    alert("Карта не загрузилась. Проверьте подключение к интернету!"); 
-                }
-            } else if (user.role === 'courier') {
-                document.getElementById('courier-panel').classList.add('active');
-                updateCourierView();
-            }
-        } else {
-            err.style.display = 'block';
+// --- 1. АВТО-ВХОД ПРИ ОБНОВЛЕНИИ СТРАНИЦЫ ---
+document.addEventListener("DOMContentLoaded", () => {
+    if (currentUser) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        if (currentUser.role === 'logistic') {
+            document.getElementById('logistic-panel').classList.add('active');
+            if (typeof L !== 'undefined') { initMap(); updateLogisticViews(); }
+        } else if (currentUser.role === 'courier') {
+            document.getElementById('courier-panel').classList.add('active');
+            updateCourierView();
         }
-    } catch (error) {
-        console.error("Ошибка при входе: ", error);
-        alert("Произошла техническая ошибка.");
+    }
+});
+
+// --- СИНХРОНИЗАЦИЯ МЕЖДУ ВКЛАДКАМИ (В РЕАЛЬНОМ ВРЕМЕНИ) ---
+window.addEventListener('storage', (e) => {
+    if (e.key === 'fleetDB') {
+        const oldDB = db;
+        db = JSON.parse(e.newValue);
+        
+        // Если я логист - проверяю, не сломался ли кто-то
+        if (currentUser && currentUser.role === 'logistic') {
+            db.couriers.forEach(c => {
+                const oldC = oldDB.couriers.find(oc => oc.id === c.id);
+                if (oldC && oldC.status !== 'Поломка' && c.status === 'Поломка') {
+                    showToast(`🚨 ВНИМАНИЕ! Курьер ${c.name} сообщил о поломке!`);
+                }
+            });
+            updateLogisticViews();
+            drawMarkers();
+        }
+        
+        // Если я курьер - просто обновляю свой список заказов
+        if (currentUser && currentUser.role === 'courier') {
+            updateCourierView();
+        }
+    }
+});
+
+function showToast(message) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerText = message;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 7000); // Исчезнет через 7 секунд
+}
+
+// --- 2. АВТОРИЗАЦИЯ И НАВИГАЦИЯ ---
+function handleLogin() {
+    const log = document.getElementById('login-input').value.trim().toLowerCase();
+    const psw = document.getElementById('password-input').value.trim();
+    const err = document.getElementById('auth-error');
+
+    err.style.display = 'none';
+    const user = db.users[log];
+
+    if (user && user.pass === psw) {
+        // Сохраняем текущего пользователя
+        currentUser = { login: log, role: user.role, name: user.name };
+        localStorage.setItem('fleetUser', JSON.stringify(currentUser));
+
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        
+        if (user.role === 'logistic') {
+            document.getElementById('logistic-panel').classList.add('active');
+            if (typeof L !== 'undefined') { initMap(); updateLogisticViews(); } 
+        } else if (user.role === 'courier') {
+            document.getElementById('courier-panel').classList.add('active');
+            updateCourierView();
+        }
+    } else {
+        err.style.display = 'block';
     }
 }
 
 function logout() {
+    currentUser = null;
+    localStorage.removeItem('fleetUser');
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById('auth-screen').classList.add('active');
     document.getElementById('login-input').value = '';
     document.getElementById('password-input').value = '';
-    
-    // Возвращаем курьера на список, если он вышел с экрана карты
-    closeCourierRoute();
+    if (courierMap) closeCourierRoute();
 }
 
 function changeLogTab(tabName, btn) {
@@ -72,17 +122,16 @@ function changeLogTab(tabName, btn) {
     document.getElementById('tab-' + tabName).classList.add('active');
     btn.classList.add('active');
 
-    // Перерисовываем карту логиста
     if(tabName === 'dashboard' && map) {
         setTimeout(() => map.invalidateSize(), 100);
         drawMarkers();
     }
 }
 
-// --- 2. КАРТА ЛОГИСТА ---
+// --- 3. КАРТА ЛОГИСТА ---
 function initMap() {
     if (map) { setTimeout(() => map.invalidateSize(), 100); return; }
-    map = L.map('map').setView([54.87, 69.15], 13); // Петропавловск
+    map = L.map('map').setView([54.87, 69.15], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
     drawMarkers();
 }
@@ -92,7 +141,6 @@ function drawMarkers() {
     mapMarkers.forEach(m => map.removeLayer(m));
     mapMarkers = [];
 
-    // Курьеры (круглые маркеры)
     db.couriers.forEach(c => {
         const color = c.status === 'Свободен' ? '#22c55e' : (c.status === 'Поломка' ? '#ef4444' : '#f59e0b');
         const marker = L.circleMarker([c.lat, c.lng], { color: color, radius: 10, fillOpacity: 0.8 }).addTo(map);
@@ -100,7 +148,6 @@ function drawMarkers() {
         mapMarkers.push(marker);
     });
 
-    // Заказы (синие квадраты)
     db.orders.forEach(o => {
         if(o.status === 'Ожидает назначения') {
             const bounds = [[o.lat-0.0005, o.lng-0.0005], [o.lat+0.0005, o.lng+0.0005]];
@@ -111,7 +158,7 @@ function drawMarkers() {
     });
 }
 
-// --- 3. ПОИСК АДРЕСОВ ДЛЯ ЗАКАЗОВ ---
+// --- ПОИСК АДРЕСОВ ---
 function searchAddress(query) {
     clearTimeout(searchTimeout);
     const suggBox = document.getElementById('address-suggestions');
@@ -120,7 +167,6 @@ function searchAddress(query) {
     if (query.length < 3) { suggBox.style.display = 'none'; return; }
 
     searchTimeout = setTimeout(() => {
-        // Поиск с приоритетом в Петропавловске
         fetch(`https://nominatim.openstreetmap.org/search?format=json&q=Петропавловск, ${query}&limit=5`)
             .then(res => res.json())
             .then(data => {
@@ -149,27 +195,17 @@ function searchAddress(query) {
 function addOrder() {
     const addr = document.getElementById('new-order-address').value;
     const w = document.getElementById('new-order-weight').value;
-    
-    if(!addr || !w) return alert("Заполните адрес и вес!");
-    if(!selectedCoords) return alert("Выберите адрес из выпадающего списка, чтобы система нашла его на карте!");
+    if(!addr || !w || !selectedCoords) return alert("Заполните форму и выберите адрес из подсказки!");
 
-    // Создаем заказ
-    db.orders.unshift({ 
-        id: nextOrderId++, 
-        address: addr, 
-        weight: w, 
-        status: 'Ожидает назначения', 
-        lat: selectedCoords.lat, 
-        lng: selectedCoords.lng 
-    });
+    db.orders.unshift({ id: db.nextOrderId++, address: addr, weight: w, status: 'Ожидает назначения', lat: selectedCoords.lat, lng: selectedCoords.lng });
     
     document.getElementById('new-order-address').value = '';
     document.getElementById('new-order-weight').value = '';
     selectedCoords = null;
     
+    saveDB(); // Сохраняем в память
     updateLogisticViews();
     drawMarkers();
-    alert("Заказ успешно создан!");
 }
 
 function addCourier() {
@@ -177,16 +213,15 @@ function addCourier() {
     const trans = document.getElementById('new-courier-transport').value;
     if(!name) return alert("Введите ФИО курьера!");
 
-    // Появляется недалеко от центра Петропавловска
     const rLat = 54.87 + (Math.random() - 0.5) * 0.05;
     const rLng = 69.15 + (Math.random() - 0.5) * 0.05;
 
     db.couriers.unshift({ id: Date.now(), name: name, transport: trans, status: 'Свободен', lat: rLat, lng: rLng });
     
     document.getElementById('new-courier-name').value = '';
+    saveDB();
     updateLogisticViews();
     drawMarkers();
-    alert("Курьер добавлен в систему!");
 }
 
 function assignOrder(orderId) {
@@ -198,20 +233,20 @@ function assignOrder(orderId) {
     const order = db.orders.find(o => o.id === orderId);
     const courier = db.couriers.find(c => c.id === courierId);
 
+    // Меняем статусы
     order.status = `Назначен: ${courier.name}`;
     courier.status = 'В пути';
 
+    saveDB(); // Мгновенно передает данные на вкладку курьера!
     updateLogisticViews();
     drawMarkers();
-    alert(`Заказ #${orderId} назначен на курьера ${courier.name}!`);
 }
 
 function updateLogisticViews() {
-    // Получаем свободных курьеров для списков назначения
-    const freeCouriers = db.couriers.filter(c => c.status === 'Свободен');
-    const optionsHtml = freeCouriers.map(c => `<option value="${c.id}">${c.name} (${c.transport})</option>`).join('');
+    // ВАЖНО: Разрешаем назначать несколько заказов (показываем всех, кто не сломался)
+    const availableCouriers = db.couriers.filter(c => c.status !== 'Поломка');
+    const optionsHtml = availableCouriers.map(c => `<option value="${c.id}">${c.name} (${c.status})</option>`).join('');
 
-    // Рендер заказов
     document.getElementById('orders-list-container').innerHTML = db.orders.map(o => `
         <div class="data-card">
             <h4>Заказ #${o.id}</h4>
@@ -231,7 +266,6 @@ function updateLogisticViews() {
         </div>
     `).join('');
 
-    // Рендер курьеров
     document.getElementById('couriers-list-container').innerHTML = db.couriers.map(c => `
         <div class="data-card" style="border-left-color: ${c.status === 'Свободен' ? '#22c55e' : (c.status === 'Поломка' ? '#ef4444' : '#f59e0b')}">
             <h4>${c.name} (${c.transport})</h4>
@@ -242,7 +276,20 @@ function updateLogisticViews() {
 
 // --- 5. ФУНКЦИОНАЛ КУРЬЕРА ---
 function updateCourierView() {
-    const myOrders = db.orders.filter(o => o.status.includes('Мария К.'));
+    if(!currentUser) return;
+    
+    // Курьер видит ТОЛЬКО свои заказы
+    const myOrders = db.orders.filter(o => o.status.includes(currentUser.name));
+    
+    // Обновляем статус курьера на экране
+    const me = db.couriers.find(c => c.name === currentUser.name);
+    const statusEl = document.getElementById('m-status-text');
+    if(me) {
+        statusEl.innerText = me.status;
+        statusEl.style.color = me.status === 'Поломка' ? '#ef4444' : 'black';
+        document.getElementById('btn-breakdown').innerText = me.status === 'Поломка' ? 'Починил' : 'Поломка';
+    }
+
     document.getElementById('courier-orders-list').innerHTML = myOrders.map(o => `
         <div class="data-card" style="border-left-color: #f59e0b">
             <h4>Заказ #${o.id}</h4>
@@ -250,7 +297,7 @@ function updateCourierView() {
             <p>⚖️ Вес: ${o.weight} кг</p>
             <button class="btn-main" style="margin-top:15px; background: #0f172a" onclick="openCourierRoute(${o.id})">🗺 Открыть маршрут</button>
         </div>
-    `).join('') || "<p style='color:#64748b'>У вас нет активных заказов.</p>";
+    `).join('') || "<p style='color:#64748b; margin-top: 20px;'>У вас нет активных заказов.</p>";
 }
 
 function openCourierRoute(orderId) {
@@ -259,16 +306,14 @@ function openCourierRoute(orderId) {
     document.getElementById('courier-route-view').style.display = 'flex';
 
     const order = db.orders.find(o => o.id === orderId);
-    const courier = db.couriers.find(c => c.name === 'Мария К.');
+    const courier = db.couriers.find(c => c.name === currentUser.name);
 
     document.getElementById('courier-route-details').innerHTML = `
         <h3 style="margin-bottom: 5px;">Заказ #${order.id}</h3>
         <p style="margin-bottom: 15px;">📍 ${order.address}</p>
         <button class="btn-main" style="background: #22c55e; margin-bottom: 10px;" onclick="completeOrder(${order.id})">✅ Доставлено</button>
-        <button class="m-btn-alert" style="width: 100%; padding: 14px;" onclick="toggleCourierStatus()">⚠️ Сообщить о проблеме</button>
     `;
 
-    // Инициализация карты маршрута курьера
     setTimeout(() => {
         if (!courierMap) {
             courierMap = L.map('courier-map').setView([courier.lat, courier.lng], 14);
@@ -283,16 +328,11 @@ function openCourierRoute(orderId) {
             }
         });
 
-        // Маркер курьера
         L.circleMarker([courier.lat, courier.lng], { color: '#3b82f6', radius: 8, fillOpacity: 1 }).addTo(courierMap).bindPopup("Вы здесь").openPopup();
-        
-        // Маркер заказа
         L.rectangle([[order.lat-0.0005, order.lng-0.0005], [order.lat+0.0005, order.lng+0.0005]], {color: '#ef4444', weight: 1, fillOpacity: 0.8}).addTo(courierMap).bindPopup("Точка доставки");
 
-        // Линия маршрута
         const latlngs = [ [courier.lat, courier.lng], [order.lat, order.lng] ];
         const routeLine = L.polyline(latlngs, {color: '#3b82f6', weight: 4, dashArray: '10, 10'}).addTo(courierMap);
-        
         courierMap.fitBounds(routeLine.getBounds(), {padding: [30, 30]});
     }, 100);
 }
@@ -304,27 +344,34 @@ function closeCourierRoute() {
 }
 
 function completeOrder(orderId) {
+    // Удаляем заказ
     const orderIndex = db.orders.findIndex(o => o.id === orderId);
     if(orderIndex > -1) db.orders.splice(orderIndex, 1); 
 
-    const courier = db.couriers.find(c => c.name === 'Мария К.');
-    courier.status = 'Свободен';
+    // Если у курьера больше нет заказов, ставим "Свободен"
+    const myRemainingOrders = db.orders.filter(o => o.status.includes(currentUser.name));
+    const courier = db.couriers.find(c => c.name === currentUser.name);
     
-    alert('Супер! Заказ доставлен, статус изменен на "Свободен".');
+    if(myRemainingOrders.length === 0) {
+        courier.status = 'Свободен';
+    }
+    
+    saveDB(); // Сообщаем логисту
     closeCourierRoute();
     updateCourierView();
 }
 
 function toggleCourierStatus() {
-    const el = document.getElementById('m-status-text');
-    if(el.innerText === 'Онлайн') {
-        el.innerText = 'ПОЛОМКА';
-        el.style.color = '#ef4444';
-        db.couriers.find(c => c.name === 'Мария К.').status = 'Поломка';
-        alert('Диспетчер уведомлен о поломке!');
+    const courier = db.couriers.find(c => c.name === currentUser.name);
+    
+    if(courier.status !== 'Поломка') {
+        courier.status = 'Поломка';
     } else {
-        el.innerText = 'Онлайн';
-        el.style.color = 'black';
-        db.couriers.find(c => c.name === 'Мария К.').status = 'Свободен';
+        // Если починился, проверяем, есть ли заказы, чтобы вернуть правильный статус
+        const myRemainingOrders = db.orders.filter(o => o.status.includes(currentUser.name));
+        courier.status = myRemainingOrders.length > 0 ? 'В пути' : 'Свободен';
     }
+    
+    saveDB(); // Мгновенно отправит уведомление логисту
+    updateCourierView();
 }
