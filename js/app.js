@@ -20,11 +20,10 @@ const defaultDB = {
 };
 
 // --- ИНИЦИАЛИЗАЦИЯ ДАННЫХ ---
-// Пытаемся загрузить базу, если её нет или она сломана - берем стандартную
 let db;
 try {
     db = JSON.parse(localStorage.getItem(DB_KEY)) || defaultDB;
-    if (!db.couriers || !db.orders) db = defaultDB; // Защита от сломанных данных
+    if (!db.couriers || !db.orders) db = defaultDB; 
 } catch (e) {
     db = defaultDB;
 }
@@ -41,10 +40,8 @@ let selectedCoords = null;
 let searchTimeout = null;
 
 // --- 1. АВТО-ВХОД ПРИ ОБНОВЛЕНИИ СТРАНИЦЫ (F5) ---
-// Этот код запускается сразу, как только браузер прочел HTML
 document.addEventListener("DOMContentLoaded", () => {
     if (currentUser) {
-        // Скрываем экран авторизации
         document.getElementById('auth-screen').classList.remove('active');
         
         if (currentUser.role === 'logistic') {
@@ -52,7 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (typeof L !== 'undefined') { 
                 initMap(); 
                 updateLogisticViews(); 
-                checkBrokenCouriersOnLoad(); // Проверяем, не сломался ли кто-то, пока мы обновляли страницу
+                checkBrokenCouriersOnLoad(); 
             }
         } else if (currentUser.role === 'courier') {
             document.getElementById('courier-panel').classList.add('active');
@@ -86,7 +83,7 @@ window.addEventListener('storage', (e) => {
 
 function showToast(message) {
     const container = document.getElementById('toast-container');
-    if (!container) return; // Защита, если HTML не обновился
+    if (!container) return; 
     const toast = document.createElement('div');
     toast.className = 'toast';
     toast.innerText = message;
@@ -94,7 +91,6 @@ function showToast(message) {
     setTimeout(() => toast.remove(), 7000);
 }
 
-// Проверка поломок при входе логиста
 function checkBrokenCouriersOnLoad() {
     const broken = db.couriers.filter(c => c.status === 'Поломка');
     if (broken.length > 0) {
@@ -143,7 +139,6 @@ function logout() {
     if (courierMap) closeCourierRoute();
 }
 
-// Экстренный сброс данных (если все сломалось)
 function resetApp() {
     localStorage.removeItem(DB_KEY);
     localStorage.removeItem(USER_KEY);
@@ -231,7 +226,6 @@ function addOrder() {
     const w = document.getElementById('new-order-weight').value;
     if(!addr || !w || !selectedCoords) return alert("Заполните форму и выберите адрес из подсказки!");
 
-    // Убедимся, что nextOrderId существует
     if (!db.nextOrderId) db.nextOrderId = 105;
 
     db.orders.unshift({ id: db.nextOrderId++, address: addr, weight: w, status: 'Ожидает назначения', lat: selectedCoords.lat, lng: selectedCoords.lng });
@@ -313,7 +307,6 @@ function updateLogisticViews() {
 function updateCourierView() {
     if(!currentUser) return;
     
-    // Ищем заказы ТОЛЬКО этого курьера
     const myOrders = db.orders.filter(o => o.status === `Назначен: ${currentUser.name}`);
     
     const me = db.couriers.find(c => c.name === currentUser.name);
@@ -378,19 +371,33 @@ function closeCourierRoute() {
 }
 
 function completeOrder(orderId) {
+    // Находим заказ и курьера
     const orderIndex = db.orders.findIndex(o => o.id === orderId);
-    if(orderIndex > -1) db.orders.splice(orderIndex, 1); 
-
-    const myRemainingOrders = db.orders.filter(o => o.status === `Назначен: ${currentUser.name}`);
     const courier = db.couriers.find(c => c.name === currentUser.name);
-    
-    if(myRemainingOrders.length === 0) {
-        courier.status = 'Свободен';
+
+    if(orderIndex > -1 && courier) {
+        const order = db.orders[orderIndex];
+
+        // 1. ПЕРЕМЕЩАЕМ КУРЬЕРА НА МЕСТО ЗАКАЗА
+        courier.lat = order.lat;
+        courier.lng = order.lng;
+
+        // 2. УДАЛЯЕМ ЗАКАЗ
+        db.orders.splice(orderIndex, 1); 
+
+        // 3. ПРОВЕРЯЕМ, ОСТАЛИСЬ ЛИ ЕЩЕ ЗАКАЗЫ (если нет - меняем статус)
+        const myRemainingOrders = db.orders.filter(o => o.status === `Назначен: ${currentUser.name}`);
+        if(myRemainingOrders.length === 0) {
+            courier.status = 'Свободен';
+        }
+        
+        // 4. СОХРАНЯЕМ И ОБНОВЛЯЕМ
+        saveDB(); 
+        closeCourierRoute();
+        updateCourierView();
+        
+        alert('Посылка успешно доставлена! Ваша геопозиция обновлена на карте.');
     }
-    
-    saveDB(); 
-    closeCourierRoute();
-    updateCourierView();
 }
 
 function toggleCourierStatus() {
