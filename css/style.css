@@ -1,0 +1,58 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body, html { height: 100%; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background: #f4f7f6; }
+
+/* Экраны и общие стили */
+.screen { display: none; width: 100%; height: 100%; }
+.screen.active { display: flex; }
+#auth-screen { justify-content: center; align-items: center; }
+.auth-card { background: white; padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 30%; min-width: 320px; text-align: center; }
+.test-creds { background: #f8fafc; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-size: 0.9em; color: #475569; }
+.inputs input { width: 100%; padding: 14px; margin-bottom: 15px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; }
+.error-msg { color: #ef4444; margin-bottom: 15px; font-weight: bold; }
+
+/* Панель Логиста */
+#logistic-panel.active { display: flex; flex-direction: row; }
+.sidebar { width: 20%; background: #0f172a; color: white; display: flex; flex-direction: column; padding: 2%; }
+.logo { font-size: 1.8rem; font-weight: bold; margin-bottom: 30px; border-bottom: 1px solid #334155; padding-bottom: 20px; text-align: center; }
+.nav-btn { background: none; border: none; color: #94a3b8; padding: 15px; text-align: left; cursor: pointer; width: 100%; font-size: 1.1rem; border-radius: 8px; margin-bottom: 10px; transition: 0.2s; }
+.nav-btn:hover, .nav-btn.active { background: #1e293b; color: white; font-weight: bold; }
+.btn-exit { margin-top: auto; padding: 15px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+
+.main-content { width: 80%; background: #ffffff; height: 100%; }
+.tab-pane { display: none; padding: 2%; height: 100%; width: 100%; }
+.tab-pane.active { display: block; }
+
+/* Карта Логиста */
+.workspace { display: flex; height: 100%; width: 100%; gap: 2%; }
+.map-view { width: 75%; height: 100%; border-radius: 12px; overflow: hidden; border: 2px solid #e2e8f0; position: relative; z-index: 1; }
+#map { width: 100%; height: 100%; background: #e5e9ed; }
+.side-details { width: 23%; background: #f8fafc; border: 2px solid #e2e8f0; padding: 20px; border-radius: 12px; overflow-y: auto; }
+
+/* Формы, Автокомплит и Списки */
+.split-view { display: flex; gap: 3%; height: 100%; }
+.form-section { width: 35%; background: #f8fafc; padding: 25px; border-radius: 12px; border: 2px solid #e2e8f0; }
+.form-section input, .form-section select { width: 100%; padding: 12px; margin: 10px 0 20px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; }
+.list-section { width: 62%; overflow-y: auto; padding-right: 10px; }
+.data-card { border: 1px solid #e2e8f0; border-left: 6px solid #3b82f6; padding: 20px; margin-bottom: 15px; border-radius: 10px; background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+
+/* Подсказки адресов */
+.suggestions-box { display: none; position: absolute; top: 50px; left: 0; width: 100%; background: white; border: 1px solid #cbd5e1; border-radius: 8px; max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+.suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+.suggestion-item:hover { background: #f8fafc; }
+
+/* Выбор курьера для назначения */
+.assign-block { margin-top: 15px; padding-top: 15px; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; }
+.assign-block select { flex-grow: 1; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; }
+.btn-assign { padding: 8px 15px; background: #22c55e; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+
+/* Мобильный курьер */
+.courier-mode { background: #334155; justify-content: center; }
+.mobile-container { width: 100%; max-width: 450px; background: white; height: 100%; display: flex; flex-direction: column; box-shadow: 0 0 30px rgba(0,0,0,0.3); }
+.m-head { padding: 25px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; }
+.m-status { font-weight: bold; font-size: 1.2rem; }
+.m-btn-alert { background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+.m-content { padding: 20px; overflow-y: auto; flex-grow: 1; }
+.m-footer { padding: 20px; border-top: 1px solid #e2e8f0; }
+
+.btn-main { width: 100%; padding: 14px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.2s; }
+.btn-main:hover { background: #1d4ed8; }

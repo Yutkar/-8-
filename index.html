@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление автопарком доставки</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <section id="auth-screen" class="screen active">
+        <div class="auth-card">
+            <h2>FleetControl</h2>
+            <div class="test-creds">
+                <p>Логист: <b>admin</b> / <b>123</b></p>
+                <p>Курьер: <b>courier</b> / <b>123</b></p>
+            </div>
+            <div class="inputs">
+                <input type="text" id="login-input" placeholder="Логин">
+                <input type="password" id="password-input" placeholder="Пароль">
+            </div>
+            <p id="auth-error" class="error-msg" style="display: none;">Неверный логин или пароль!</p>
+            <button class="btn-main" onclick="handleLogin()">Войти</button>
+        </div>
+    </section>
+
+    <main id="logistic-panel" class="screen">
+        <aside class="sidebar">
+            <div class="logo">FleetControl</div>
+            <nav>
+                <button class="nav-btn active" onclick="changeLogTab('dashboard', this)">🗺 Дашборд</button>
+                <button class="nav-btn" onclick="changeLogTab('orders', this)">📦 Заказы</button>
+                <button class="nav-btn" onclick="changeLogTab('couriers', this)">🚚 Курьеры</button>
+            </nav>
+            <button class="btn-exit" onclick="logout()">Выйти</button>
+        </aside>
+
+        <section class="main-content">
+            <div id="tab-dashboard" class="tab-pane active">
+                <div class="workspace">
+                    <div class="map-view">
+                        <div id="map"></div>
+                    </div>
+                    <aside class="side-details" id="map-details">
+                        <h3>Инфо-панель</h3>
+                        <p>Кликните на курьера или заказ на карте, чтобы увидеть детали.</p>
+                    </aside>
+                </div>
+            </div>
+
+            <div id="tab-orders" class="tab-pane">
+                <div class="split-view">
+                    <div class="form-section">
+                        <h3>Новый заказ</h3>
+                        <div style="position: relative;">
+                            <input type="text" id="new-order-address" placeholder="Начните вводить адрес (город и улица)..." oninput="searchAddress(this.value)">
+                            <div id="address-suggestions" class="suggestions-box"></div>
+                        </div>
+                        <input type="number" id="new-order-weight" placeholder="Вес (кг)">
+                        <button class="btn-main" onclick="addOrder()">Создать заказ</button>
+                    </div>
+                    <div class="list-section" id="orders-list-container">
+                        </div>
+                </div>
+            </div>
+
+            <div id="tab-couriers" class="tab-pane">
+                <div class="split-view">
+                    <div class="form-section">
+                        <h3>Добавить курьера</h3>
+                        <input type="text" id="new-courier-name" placeholder="ФИО курьера">
+                        <select id="new-courier-transport">
+                            <option value="Авто">Авто</option>
+                            <option value="Мото">Мото</option>
+                            <option value="Велосипед">Велосипед</option>
+                            <option value="Пешком">Пешком</option>
+                        </select>
+                        <button class="btn-main" onclick="addCourier()">Добавить в базу</button>
+                    </div>
+                    <div class="list-section" id="couriers-list-container">
+                        </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <main id="courier-panel" class="screen courier-mode">
+        <div class="mobile-container">
+            <header class="m-head">
+                <div class="m-status">Статус: <span id="m-status-text">Онлайн</span></div>
+                <button class="m-btn-alert" onclick="toggleCourierStatus()">Поломка</button>
+            </header>
+            
+            <div class="m-content" id="courier-main-view">
+                <h3>Мои заказы</h3>
+                <div id="courier-orders-list"></div>
+            </div>
+
+            <div id="courier-route-view" style="display: none; flex-direction: column; flex-grow: 1;">
+                <button class="btn-main" style="border-radius: 0; background: #1e293b; padding: 15px; text-align: left;" onclick="closeCourierRoute()">← Назад к списку</button>
+                <div id="courier-map" style="flex-grow: 1; width: 100%; min-height: 250px; z-index: 1;"></div>
+                <div id="courier-route-details" style="padding: 20px; border-top: 1px solid #e2e8f0; background: white;">
+                    </div>
+            </div>
+
+            <div class="m-footer" id="courier-footer">
+                <button class="btn-exit" style="width: 100%;" onclick="logout()">Выйти из системы</button>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
