@@ -1,7 +1,11 @@
-// --- БАЗА ДАННЫХ (LOCAL STORAGE) ---
+// --- УНИКАЛЬНЫЕ КЛЮЧИ ДЛЯ GITHUB PAGES ---
+const DB_KEY = 'fleet_app_db_v1';
+const USER_KEY = 'fleet_app_user_v1';
+
+// --- БАЗА ДАННЫХ ПО УМОЛЧАНИЮ ---
 const defaultDB = {
     users: {
-        'admin': { pass: '123', role: 'logistic' },
+        'admin': { pass: '123', role: 'logistic', name: 'Логист' },
         'courier': { pass: '123', role: 'courier', name: 'Мария К.' },
         'ivan': { pass: '123', role: 'courier', name: 'Иван П.' }
     },
@@ -15,28 +19,41 @@ const defaultDB = {
     nextOrderId: 102
 };
 
-// Загружаем базу из памяти браузера или берем стандартную
-let db = JSON.parse(localStorage.getItem('fleetDB')) || defaultDB;
-let currentUser = JSON.parse(localStorage.getItem('fleetUser')) || null;
-
-// Функция для сохранения изменений
-function saveDB() {
-    localStorage.setItem('fleetDB', JSON.stringify(db));
+// --- ИНИЦИАЛИЗАЦИЯ ДАННЫХ ---
+// Пытаемся загрузить базу, если её нет или она сломана - берем стандартную
+let db;
+try {
+    db = JSON.parse(localStorage.getItem(DB_KEY)) || defaultDB;
+    if (!db.couriers || !db.orders) db = defaultDB; // Защита от сломанных данных
+} catch (e) {
+    db = defaultDB;
 }
 
-// Переменные для карт
+let currentUser = JSON.parse(localStorage.getItem(USER_KEY)) || null;
+
+function saveDB() {
+    localStorage.setItem(DB_KEY, JSON.stringify(db));
+}
+
 let map, mapMarkers = []; 
 let courierMap; 
 let selectedCoords = null; 
 let searchTimeout = null;
 
-// --- 1. АВТО-ВХОД ПРИ ОБНОВЛЕНИИ СТРАНИЦЫ ---
+// --- 1. АВТО-ВХОД ПРИ ОБНОВЛЕНИИ СТРАНИЦЫ (F5) ---
+// Этот код запускается сразу, как только браузер прочел HTML
 document.addEventListener("DOMContentLoaded", () => {
     if (currentUser) {
-        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        // Скрываем экран авторизации
+        document.getElementById('auth-screen').classList.remove('active');
+        
         if (currentUser.role === 'logistic') {
             document.getElementById('logistic-panel').classList.add('active');
-            if (typeof L !== 'undefined') { initMap(); updateLogisticViews(); }
+            if (typeof L !== 'undefined') { 
+                initMap(); 
+                updateLogisticViews(); 
+                checkBrokenCouriersOnLoad(); // Проверяем, не сломался ли кто-то, пока мы обновляли страницу
+            }
         } else if (currentUser.role === 'courier') {
             document.getElementById('courier-panel').classList.add('active');
             updateCourierView();
@@ -44,13 +61,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// --- СИНХРОНИЗАЦИЯ МЕЖДУ ВКЛАДКАМИ (В РЕАЛЬНОМ ВРЕМЕНИ) ---
+// --- СИНХРОНИЗАЦИЯ ВКЛАДОК ДЛЯ УВЕДОМЛЕНИЙ ---
 window.addEventListener('storage', (e) => {
-    if (e.key === 'fleetDB') {
+    if (e.key === DB_KEY) {
         const oldDB = db;
         db = JSON.parse(e.newValue);
         
-        // Если я логист - проверяю, не сломался ли кто-то
         if (currentUser && currentUser.role === 'logistic') {
             db.couriers.forEach(c => {
                 const oldC = oldDB.couriers.find(oc => oc.id === c.id);
@@ -62,7 +78,6 @@ window.addEventListener('storage', (e) => {
             drawMarkers();
         }
         
-        // Если я курьер - просто обновляю свой список заказов
         if (currentUser && currentUser.role === 'courier') {
             updateCourierView();
         }
@@ -71,14 +86,23 @@ window.addEventListener('storage', (e) => {
 
 function showToast(message) {
     const container = document.getElementById('toast-container');
+    if (!container) return; // Защита, если HTML не обновился
     const toast = document.createElement('div');
     toast.className = 'toast';
     toast.innerText = message;
     container.appendChild(toast);
-    setTimeout(() => toast.remove(), 7000); // Исчезнет через 7 секунд
+    setTimeout(() => toast.remove(), 7000);
 }
 
-// --- 2. АВТОРИЗАЦИЯ И НАВИГАЦИЯ ---
+// Проверка поломок при входе логиста
+function checkBrokenCouriersOnLoad() {
+    const broken = db.couriers.filter(c => c.status === 'Поломка');
+    if (broken.length > 0) {
+        broken.forEach(c => showToast(`🚨 Напоминание: Курьер ${c.name} находится в статусе ПОЛОМКА!`));
+    }
+}
+
+// --- 2. АВТОРИЗАЦИЯ И ВЫХОД ---
 function handleLogin() {
     const log = document.getElementById('login-input').value.trim().toLowerCase();
     const psw = document.getElementById('password-input').value.trim();
@@ -88,15 +112,18 @@ function handleLogin() {
     const user = db.users[log];
 
     if (user && user.pass === psw) {
-        // Сохраняем текущего пользователя
         currentUser = { login: log, role: user.role, name: user.name };
-        localStorage.setItem('fleetUser', JSON.stringify(currentUser));
+        localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
 
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         
         if (user.role === 'logistic') {
             document.getElementById('logistic-panel').classList.add('active');
-            if (typeof L !== 'undefined') { initMap(); updateLogisticViews(); } 
+            if (typeof L !== 'undefined') { 
+                initMap(); 
+                updateLogisticViews(); 
+                checkBrokenCouriersOnLoad();
+            } 
         } else if (user.role === 'courier') {
             document.getElementById('courier-panel').classList.add('active');
             updateCourierView();
@@ -108,12 +135,19 @@ function handleLogin() {
 
 function logout() {
     currentUser = null;
-    localStorage.removeItem('fleetUser');
+    localStorage.removeItem(USER_KEY);
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById('auth-screen').classList.add('active');
     document.getElementById('login-input').value = '';
     document.getElementById('password-input').value = '';
     if (courierMap) closeCourierRoute();
+}
+
+// Экстренный сброс данных (если все сломалось)
+function resetApp() {
+    localStorage.removeItem(DB_KEY);
+    localStorage.removeItem(USER_KEY);
+    location.reload();
 }
 
 function changeLogTab(tabName, btn) {
@@ -197,13 +231,16 @@ function addOrder() {
     const w = document.getElementById('new-order-weight').value;
     if(!addr || !w || !selectedCoords) return alert("Заполните форму и выберите адрес из подсказки!");
 
+    // Убедимся, что nextOrderId существует
+    if (!db.nextOrderId) db.nextOrderId = 105;
+
     db.orders.unshift({ id: db.nextOrderId++, address: addr, weight: w, status: 'Ожидает назначения', lat: selectedCoords.lat, lng: selectedCoords.lng });
     
     document.getElementById('new-order-address').value = '';
     document.getElementById('new-order-weight').value = '';
     selectedCoords = null;
     
-    saveDB(); // Сохраняем в память
+    saveDB(); 
     updateLogisticViews();
     drawMarkers();
 }
@@ -233,17 +270,15 @@ function assignOrder(orderId) {
     const order = db.orders.find(o => o.id === orderId);
     const courier = db.couriers.find(c => c.id === courierId);
 
-    // Меняем статусы
     order.status = `Назначен: ${courier.name}`;
     courier.status = 'В пути';
 
-    saveDB(); // Мгновенно передает данные на вкладку курьера!
+    saveDB(); 
     updateLogisticViews();
     drawMarkers();
 }
 
 function updateLogisticViews() {
-    // ВАЖНО: Разрешаем назначать несколько заказов (показываем всех, кто не сломался)
     const availableCouriers = db.couriers.filter(c => c.status !== 'Поломка');
     const optionsHtml = availableCouriers.map(c => `<option value="${c.id}">${c.name} (${c.status})</option>`).join('');
 
@@ -278,10 +313,9 @@ function updateLogisticViews() {
 function updateCourierView() {
     if(!currentUser) return;
     
-    // Курьер видит ТОЛЬКО свои заказы
-    const myOrders = db.orders.filter(o => o.status.includes(currentUser.name));
+    // Ищем заказы ТОЛЬКО этого курьера
+    const myOrders = db.orders.filter(o => o.status === `Назначен: ${currentUser.name}`);
     
-    // Обновляем статус курьера на экране
     const me = db.couriers.find(c => c.name === currentUser.name);
     const statusEl = document.getElementById('m-status-text');
     if(me) {
@@ -344,19 +378,17 @@ function closeCourierRoute() {
 }
 
 function completeOrder(orderId) {
-    // Удаляем заказ
     const orderIndex = db.orders.findIndex(o => o.id === orderId);
     if(orderIndex > -1) db.orders.splice(orderIndex, 1); 
 
-    // Если у курьера больше нет заказов, ставим "Свободен"
-    const myRemainingOrders = db.orders.filter(o => o.status.includes(currentUser.name));
+    const myRemainingOrders = db.orders.filter(o => o.status === `Назначен: ${currentUser.name}`);
     const courier = db.couriers.find(c => c.name === currentUser.name);
     
     if(myRemainingOrders.length === 0) {
         courier.status = 'Свободен';
     }
     
-    saveDB(); // Сообщаем логисту
+    saveDB(); 
     closeCourierRoute();
     updateCourierView();
 }
@@ -367,11 +399,10 @@ function toggleCourierStatus() {
     if(courier.status !== 'Поломка') {
         courier.status = 'Поломка';
     } else {
-        // Если починился, проверяем, есть ли заказы, чтобы вернуть правильный статус
-        const myRemainingOrders = db.orders.filter(o => o.status.includes(currentUser.name));
+        const myRemainingOrders = db.orders.filter(o => o.status === `Назначен: ${currentUser.name}`);
         courier.status = myRemainingOrders.length > 0 ? 'В пути' : 'Свободен';
     }
     
-    saveDB(); // Мгновенно отправит уведомление логисту
+    saveDB(); 
     updateCourierView();
 }
